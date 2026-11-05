@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
+
+# Testing and coverage
+coverage/
+.nyc_output/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Scratch and agent artifacts
+.system_generated/
+.gemini/
+AUDIT_REQUIREMENTS_FULL.md
+CLAUDE_AUDIT_PROMPT.md
+HANDOFF_PROMPT.md
+
+# Internal specification and design documents
+Pocketful App Flow and UI UX Design Document.md
+Pocketful Backend and Database Schema Document.md
+Pocketful Product Requirements Document.md
+Pocketful Technical Requirements Document.md
+
+# Archives and temporary files
+*.zip
+~$*
+*_backup.*
+scratch/
+screenshots/
+qr_code_*.png
+
+# Media, video, and slide working files (keep only final Pocketful_Deck.pdf)
+AUDIOS/
+video_slides/
+*.pptx
+*.mp4
+*.m4a
+*.srt
+*.ass
+apply_direct_burgundy_border.py
+export_pdf.ps1
+Pocketful_Deck_fonts-embedded (1).pdf

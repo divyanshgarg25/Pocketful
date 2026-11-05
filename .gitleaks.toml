@@ -1,0 +1,15 @@
+title = "Pocketful secret scan"
+
+[extend]
+useDefault = true
+
+# Exact, known-fake fixture values only. Directories are deliberately NOT allowlisted, so a real secret pasted into a
+# test file would still be flagged. Add a value here only after confirming it is a placeholder.
+[allowlist]
+description = "Known fake fixtures used by tests and the CI test database"
+regexes = [
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
+  '''test-jwt-secret-test-jwt-secret-1234567890''',
+  '''prod-anon-key-abc-123''',
+  '''ttl-boundary-key-01''',
+]
