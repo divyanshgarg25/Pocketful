@@ -1,0 +1,113 @@
+[
+  {
+    "id": "e0a1b2c3-0001-4000-8000-000000000001",
+    "osm_id": "osm_node_101",
+    "name": "Quiet Leaf Cafe",
+    "category": "cafes",
+    "lat": 37.7749,
+    "lng": -122.4194,
+    "est_cost_low_minor": 800,
+    "est_cost_high_minor": 1400,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "high",
+    "quietness": "quiet",
+    "tags": {
+      "amenity": "cafe",
+      "cuisine": "coffee_shop",
+      "outdoor_seating": "yes",
+      "wifi": "yes"
+    }
+  },
+  {
+    "id": "e0a1b2c3-0002-4000-8000-000000000002",
+    "osm_id": "osm_node_102",
+    "name": "The Foundry Board Game Parlour",
+    "category": "gaming",
+    "lat": 37.7810,
+    "lng": -122.4120,
+    "est_cost_low_minor": 1200,
+    "est_cost_high_minor": 2000,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "high",
+    "quietness": "mixed",
+    "tags": {
+      "leisure": "amusement_arcade",
+      "board_games": "yes",
+      "food": "snacks"
+    }
+  },
+  {
+    "id": "e0a1b2c3-0003-4000-8000-000000000003",
+    "osm_id": "osm_node_103",
+    "name": "Mission Boulder Climbing Gym",
+    "category": "sports",
+    "lat": 37.7650,
+    "lng": -122.4210,
+    "est_cost_low_minor": 2200,
+    "est_cost_high_minor": 3000,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "high",
+    "quietness": "lively",
+    "tags": {
+      "sport": "climbing",
+      "leisure": "sports_centre"
+    }
+  },
+  {
+    "id": "e0a1b2c3-0004-4000-8000-000000000004",
+    "osm_id": "osm_node_104",
+    "name": "Clay & Kiln Ceramic Workshop",
+    "category": "workshops",
+    "lat": 37.7690,
+    "lng": -122.4280,
+    "est_cost_low_minor": 3500,
+    "est_cost_high_minor": 4500,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "medium",
+    "quietness": "quiet",
+    "tags": {
+      "craft": "pottery",
+      "workshop": "yes"
+    }
+  },
+  {
+    "id": "e0a1b2c3-0005-4000-8000-000000000005",
+    "osm_id": "osm_node_105",
+    "name": "Roxie Vintage Cinema",
+    "category": "arts",
+    "lat": 37.7635,
+    "lng": -122.4215,
+    "est_cost_low_minor": 1400,
+    "est_cost_high_minor": 1800,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "high",
+    "quietness": "quiet",
+    "tags": {
+      "amenity": "cinema",
+      "independent": "yes"
+    }
+  },
+  {
+    "id": "e0a1b2c3-0006-4000-8000-000000000006",
+    "osm_id": "osm_node_106",
+    "name": "Redwood Canopy Trail",
+    "category": "outdoors",
+    "lat": 37.7900,
+    "lng": -122.4400,
+    "est_cost_low_minor": 0,
+    "est_cost_high_minor": 500,
+    "currency": "USD",
+    "cost_source": "estimate",
+    "cost_confidence": "high",
+    "quietness": "quiet",
+    "tags": {
+      "leisure": "park",
+      "nature": "forest"
+    }
+  }
+]
