@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --linen: #F3EBDD;
+  --parchment: #FAF5EA;
+  --sand: #E6D9C3;
+  --oat: #D3C3A8;
+  --taupe: #6B5B4A;
+  --ink: #2A1A17;
+
+  --burgundy: #6D1A2C;
+  --claret: #8B2635;
+  --maroon: #4A0F1E;
+  --blush: #EBD5D0;
+  --brass: #B08D57;
+
+  --moss: #56653F;
+  --ochre: #855305;
+  --brick: #A3392B;
+
+  /* The Soft Monochromatic Route: Elegant mid-tones bridging dark burgundy and light beige */
+  --dusty-rose: #C98A7D;
+  --blush-pink: #F4E4E0;
+
+  /* The Minimalist Editorial Route: Crisp elevated surfaces and sharp magazine tech text */
+  --crisp-white: #FFFFFF;
+  --charcoal: #362B28;
+  --charcoal-gray: #362B28;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-ui: 'Instrument Sans', system-ui, sans-serif;
+  --font-num: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-control: 2px;
+  --radius-surface: 4px;
+  --rule: 1px solid var(--oat);
+  --lift: 3px 3px 0 rgba(74, 15, 30, 0.16);
+}
+
+html {
+  font-size: 16px;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-size: 1rem;
+  line-height: 1.5;
+  background-color: var(--linen);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numeric Ledger Elements */
+.font-num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Accountant Rules */
+.rule-double {
+  border-bottom: 3px double var(--oat);
+}
+
+.rule-single {
+  border-bottom: 1px solid var(--oat);
+}
+
+/* Hard Offset Shadows (strictly no blurs) */
+.shadow-lift {
+  box-shadow: var(--lift);
+}
+
+/* Ledger Focus Ring */
+:focus-visible {
+  outline: 2px solid var(--maroon);
+  outline-offset: 2px;
+}
+
+/* Purge default browser increment/decrement spin buttons for number inputs */
+/* Hide arrows for Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide arrows for Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* AG Grid Custom Ledger Theme Overrides */
+.ag-theme-alpine,
+.ag-theme-quartz,
+.ag-theme-ledger {
+  --ag-background-color: var(--parchment);
+  --ag-header-background-color: var(--sand);
+  --ag-header-foreground-color: var(--ink);
+  --ag-foreground-color: var(--ink);
+  --ag-border-color: var(--oat);
+  --ag-row-hover-color: var(--linen);
+  --ag-selected-row-background-color: var(--blush);
+  --ag-font-family: var(--font-ui);
+  --ag-font-size: 14px;
+  --ag-row-height: 48px;
+  --ag-header-height: 40px;
+  --ag-borders: none;
+  --ag-row-border-style: solid;
+  --ag-row-border-color: var(--oat);
+  --ag-row-border-width: 1px;
+}
