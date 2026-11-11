@@ -1,0 +1,98 @@
+name: Pocketful CI
+
+on:
+  push:
+    branches: [main, fix/*, feat/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit-and-test:
+    name: Typecheck, Test & Build Monorepo
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Dependency audit (fails on high or critical)
+        run: npm audit --audit-level=high
+
+      - name: TypeScript Typecheck (0 Errors)
+        run: npm run typecheck
+
+      - name: Lint (ESLint, no-console in production code)
+        run: npm run lint
+
+      - name: Automated Test Suite Execution
+        run: npm test
+
+      - name: API coverage gate (money-critical modules >= 95%, global ratchet)
+        run: npm run test:coverage --workspace pocketful-api
+
+      - name: Monorepo Production Build
+        run: npm run build
+
+  db-tests:
+    name: Real-Postgres migrations & DB tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pocketful_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DB_ADMIN_URL: postgres://postgres:postgres@localhost:5432/pocketful_test
+      TEST_PGRST_URL: http://127.0.0.1:54321
+      PGRST_JWT_SECRET: test-jwt-secret-test-jwt-secret-1234567890
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci
+      - name: Install PostgREST (pinned)
+        run: |
+          curl -fsSL -o /tmp/pgrst.tar.xz https://github.com/PostgREST/postgrest/releases/download/v12.2.12/postgrest-v12.2.12-linux-static-x86-64.tar.xz
+          sudo tar -xJf /tmp/pgrst.tar.xz -C /usr/local/bin postgrest
+          postgrest --version
+      - name: Create roles + auth schema, apply migrations 001→007 (fails on any error), start PostgREST
+        run: bash scripts/db/setup.sh
+      - name: Run DB suite
+        run: npm run test:db:run --workspace pocketful-api
+
+  secret-scan:
+    name: Secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks (pinned)
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks version
+      - name: Scan history and working tree
+        run: /tmp/gitleaks detect --source . --config .gitleaks.toml --redact --no-banner

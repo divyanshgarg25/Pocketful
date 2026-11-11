@@ -1,0 +1,1675 @@
+openapi: 3.1.0
+info:
+  title: Pocketful Autonomous Lifestyle Financial Agent API
+  version: 1.0.0
+  description: >-
+    The production REST API for Pocketful: an autonomous weekend financial lifestyle agent
+    that audits ghost subscriptions, calculates deterministic guilt-free fun money, recommends
+    closed-world weekend blueprints via Thompson Sampling, handles multi-friend PayPal splits
+    with penny-perfect arithmetic, and enforces deterministic Guardian security policies.
+servers:
+  - url: http://localhost:3001
+    description: Local Development / Demo Server
+  - url: https://pocketful-api.onrender.com
+    description: Render Cloud Production Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer JWT token for authenticated user sessions
+    IdempotencyKey:
+      type: apiKey
+      in: header
+      name: Idempotency-Key
+      description: Unique 16-128 character idempotency key required for financial mutations
+
+  schemas:
+    StepUpProof:
+      description: Proof from one real factor, bound to the challenge the server issued. Exactly one `method` per request.
+      oneOf:
+        - type: object
+          required: [method, assertion]
+          properties:
+            method:
+              type: string
+              enum: [passkey]
+            assertion:
+              type: object
+              description: AuthenticationResponseJSON from navigator.credentials.get() (user verification required)
+        - type: object
+          required: [method, code]
+          properties:
+            method:
+              type: string
+              enum: [totp]
+            code:
+              type: string
+              pattern: '^[0-9]{6}$'
+        - type: object
+          required: [method, pin]
+          properties:
+            method:
+              type: string
+              enum: [pin]
+            pin:
+              type: string
+        - type: object
+          required: [method, testProof]
+          description: Software test authenticator. Only accepted when STEP_UP_TEST_MODE=true outside production; the API refuses to boot with it in production.
+          properties:
+            method:
+              type: string
+              enum: [test]
+            testProof:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+
+    StepUpMethod:
+      type: string
+      enum: [passkey, totp, pin, test]
+
+    StepUpStatus:
+      type: object
+      properties:
+        enrolled:
+          type: boolean
+        methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepUpMethod'
+        passkeys:
+          type: integer
+        totp:
+          type: boolean
+        pin:
+          type: boolean
+        lockedUntil:
+          type: [string, 'null']
+          format: date-time
+        cooldownRemainingSeconds:
+          type: integer
+          minimum: 0
+          description: Seconds until a newly enrolled/replaced/reset factor may approve money actions (0 = none running).
+
+    StepUpChallenge:
+      type: object
+      properties:
+        challengeNonce:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepUpMethod'
+        passkeyOptions:
+          type: object
+          description: PublicKeyCredentialRequestOptionsJSON (present when the user has a passkey)
+        testChallenge:
+          type: string
+          description: Present only in test mode; the value the software test authenticator signs.
+
+    ApiResponse:
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          example: true
+        requestId:
+          type: string
+          example: req_1730761200000_abc12
+        data:
+          type: object
+        error:
+          $ref: '#/components/schemas/ApiError'
+
+    ApiError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_FAILED
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - GUARDIAN_BLOCKED
+            - APPROVAL_REQUIRED
+            - APPROVAL_EXPIRED
+            - IDEMPOTENT_REPLAY
+            - CONCURRENT_ACTION
+            - ALREADY_REFUNDED
+            - OUTING_CANCELLED
+            - OUTING_EXPIRED
+            - UPSTREAM_PAYPAL
+            - UPSTREAM_LLM
+            - RATE_LIMITED
+            - ACCOUNT_ERASED
+            - STEP_UP_NOT_ENROLLED
+            - STEP_UP_REQUIRED
+            - STEP_UP_CHALLENGE_REQUIRED
+            - STEP_UP_CHALLENGE_EXPIRED
+            - STEP_UP_CHALLENGE_INVALID
+            - STEP_UP_LOCKED
+            - STEP_UP_FAILED
+            - STEP_UP_COOLDOWN
+            - FRESH_SESSION_REQUIRED
+            - REGION_REQUIRED
+            - ALREADY_EXECUTED
+            - RETRY_LIMIT
+            - EXECUTION_FAILED
+            - INTERNAL_ERROR
+          example: VALIDATION_FAILED
+        message:
+          type: string
+          example: Input validation failed
+        details:
+          type: object
+        requestId:
+          type: string
+          example: req_1730761200000_abc12
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        home_address:
+          type: string
+        home_lat:
+          type: number
+        home_lng:
+          type: number
+        guilt_free_cap_minor:
+          type: integer
+        per_action_cap_minor:
+          type: integer
+        weekly_cap_minor:
+          type: integer
+        currency:
+          type: string
+          example: USD
+        max_distance_km:
+          type: number
+        opt_in_mood:
+          type: boolean
+        opt_in_tracking:
+          type: boolean
+        exploration_level:
+          type: string
+          enum: [off, low, normal]
+
+    WalletStatement:
+      type: object
+      properties:
+        totalBalanceMinor:
+          type: integer
+          example: 284000
+        totalBalanceFormatted:
+          type: string
+          example: "$2,840.00"
+        funMoneyMinor:
+          type: integer
+          example: 14000
+        funMoneyFormatted:
+          type: string
+          example: "$140.00"
+        guiltFreeCapMinor:
+          type: integer
+          example: 25000
+        pockets:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum: [weekly, holiday, getaway]
+              balanceMinor:
+                type: integer
+              balanceFormatted:
+                type: string
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_name:
+          type: string
+        amount_minor:
+          type: integer
+        currency:
+          type: string
+        billing_cycle:
+          type: string
+          enum: [monthly, annual, weekly]
+        status:
+          type: string
+          enum: [active, pending_cancellation, cancelled]
+        is_ghost:
+          type: boolean
+        days_unused:
+          type: integer
+
+    Approval:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        action_type:
+          type: string
+          enum:
+            - cancel_subscription
+            - send_requests
+            - refund_group
+            - vault_move
+            - pocket_move
+            - reset_learning
+            - delete_data
+            - change_caps
+        preview:
+          type: string
+        amount_minor:
+          type: integer
+        money_out_minor:
+          type: integer
+        status:
+          type: string
+          enum: [pending, approved, executing, executed, failed, denied, expired, cancelled]
+        idempotency_key:
+          type: string
+        challenge_nonce:
+          type: string
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness Probe
+      description: Returns service liveness status and environment.
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /readyz:
+    get:
+      summary: Readiness Probe
+      description: Verifies database and external dependency connectivity. Returns 503 if not ready.
+      responses:
+        '200':
+          description: Service is ready for traffic
+        '503':
+          description: Service dependency unavailable
+
+  /api/auth/dev-token:
+    post:
+      summary: Development Token Generation
+      description: Generates a signed development JWT. Strictly disabled in production.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                email:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Signed token generated
+        '403':
+          description: Forbidden in production
+
+  /api/auth/signup:
+    post:
+      summary: New User Registration
+      description: Signs up a new user account with secure defaults.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                displayName:
+                  type: string
+      responses:
+        '200':
+          description: Registration successful
+        '400':
+          description: Validation error
+
+  /webhooks/paypal:
+    post:
+      summary: PayPal Webhook Ingestion
+      description: Verifies webhook signature, deduplicates idempotently via webhook_events, and reconciles split captures.
+      parameters:
+        - in: header
+          name: paypal-transmission-id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: paypal-transmission-sig
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed or deduplicated
+        '401':
+          description: Invalid PayPal signature
+
+  /api/places/geocode:
+    get:
+      summary: Geocode Address Query
+      description: Geocodes address via OpenStreetMap Nominatim with 1 req/sec rate limiting.
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Geocode coordinates returned
+
+  /api/places/reverse-geocode:
+    get:
+      summary: Reverse Geocode Lat/Lng Coordinates
+      description: Resolves lat/lng coordinates to neighborhood/city name via Nominatim with rate limiting.
+      parameters:
+        - in: query
+          name: lat
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: lng
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Reverse geocode result returned
+
+  /pay/{token}:
+    get:
+      summary: Friend Checkout Statement Page
+      description: Unauthenticated public page allowing a friend to review their split payment details.
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Friend payment details returned
+        '404':
+          description: Payment token not found or cancelled
+
+  /pay/{token}/capture:
+    post:
+      summary: Friend Checkout Payment Capture
+      description: Captures friend split share via PayPal Sandbox REST API. Fails closed on draft groups.
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Share marked as paid and recorded
+        '409':
+          description: Outing already finalized or cancelled
+
+  /api/onboarding:
+    post:
+      summary: User Onboarding Vibe Check
+      description: |
+        Saves the user's own baseline: where they are, how far they will go, their guilt-free weekly amount and
+        preferences. Nothing is invented for the account: the name is the one supplied at sign-up (or `name` here),
+        and the weekly pocket is created at zero if absent. `timezone` matters because the weekly cap resets at
+        Monday 00:00 in that IANA zone; if omitted the existing zone is kept.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                  description: Display name (trimmed). Defaults to the existing profile name.
+                timezone:
+                  type: string
+                  maxLength: 64
+                  example: Asia/Kolkata
+                  description: IANA time zone. 400 VALIDATION_FAILED if unknown.
+                address:
+                  type: string
+                  minLength: 1
+                  description: Free text, or a "lat, lng" pair. Geocoded server-side.
+                reachKm:
+                  type: number
+                  minimum: 1
+                  maximum: 50
+                  default: 5
+                guiltFreeCapMinor:
+                  type: integer
+                  minimum: 0
+                  default: 15000
+                interests:
+                  type: array
+                  items:
+                    type: string
+                socialPref:
+                  type: string
+                  enum: [solo, social, mixed]
+                  default: mixed
+                vibePref:
+                  type: string
+                  enum: [quiet, lively, mixed]
+                  default: quiet
+                optInMood:
+                  type: boolean
+                  default: true
+                optInTracking:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: Profile, preferences and geocode result
+        '400':
+          description: VALIDATION_FAILED (bad timezone, empty name or address, out-of-range reach)
+
+  /api/me:
+    get:
+      summary: Current User Profile & Preferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile details returned
+
+  /api/me/settings:
+    patch:
+      summary: Update User Settings
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxDistanceKm:
+                  type: number
+                guiltFreeCapMinor:
+                  type: integer
+                currency:
+                  type: string
+                optInMood:
+                  type: boolean
+                optInTracking:
+                  type: boolean
+      responses:
+        '200':
+          description: Settings updated
+
+  /api/me/export:
+    get:
+      summary: GDPR Full Data Export
+      security:
+        - BearerAuth: []
+      description: Exports full user ledger, preferences, transactions, plans, and audit logs as a downloadable JSON file.
+      responses:
+        '200':
+          description: Full data bundle exported
+
+  /api/me/data:
+    delete:
+      summary: GDPR Right-to-be-Forgotten Data Erasure
+      security:
+        - BearerAuth: []
+      description: Permanently erases all user profile, ledger, transaction, and learning records.
+      responses:
+        '200':
+          description: User data permanently erased
+        '401':
+          description: Unauthorized or ACCOUNT_ERASED (once erased, subsequent calls with old tokens fail with code ACCOUNT_ERASED)
+
+  /api/wallet:
+    get:
+      summary: Wallet Overview & Available Fun Money
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Wallet balances and fun money returned
+
+  /api/wallet/statement:
+    get:
+      summary: Itemized Financial Statement
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Itemized financial statement returned
+
+  /api/wallet/pockets:
+    get:
+      summary: Vault Pockets Status
+      security:
+        - BearerAuth: []
+      description: Returns Weekly Leisure, Holiday, and Getaway pocket balances.
+      responses:
+        '200':
+          description: Pockets array returned
+
+  /api/subscriptions:
+    get:
+      summary: Active & Cancelled Subscriptions List
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of subscriptions returned
+
+  /api/subscriptions/audit:
+    get:
+      summary: Ghost Subscription Auditor Scan
+      security:
+        - BearerAuth: []
+      description: Scans recurring transactions for dormant or low-usage subscriptions using rational weeks-per-month arithmetic.
+      responses:
+        '200':
+          description: Ghost subscriptions with explanations
+
+  /api/subscriptions/cancel/preview:
+    post:
+      summary: Stage Subscription Cancellation Approval
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionIds]
+              properties:
+                subscriptionIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Staged pending approval with yearly savings preview
+
+  /api/subscriptions/{id}/snooze:
+    post:
+      summary: Snooze Ghost Subscription Notice
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days:
+                  type: integer
+                  default: 30
+      responses:
+        '200':
+          description: Subscription notice snoozed
+
+  /api/approvals:
+    get:
+      summary: List Staged & Past Approvals
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Array of approvals returned
+
+  /api/auth/step-up:
+    get:
+      summary: Step-up factor status
+      description: Which verification methods the user has set up (passkeys, authenticator app, PIN) and whether PIN/TOTP are currently locked. Never returns secrets, hashes or keys.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Enrollment status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepUpStatus'
+
+  /api/auth/step-up/challenge:
+    post:
+      summary: Challenge for changing your own verification methods
+      description: Single-use, 5-minute challenge that a passkey proof must sign before you can add or change a factor once any factor exists. PIN/TOTP proofs do not need it.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Challenge issued. `passkeyOptions` is present when the user has a passkey.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepUpChallenge'
+
+  /api/auth/step-up/pin:
+    put:
+      summary: Enroll or change the step-up PIN
+      description: The first factor a user ever sets needs only the session (trust-on-first-use; enrol during onboarding). Once any factor exists, `proof` from an existing factor is required (`currentPin` is a shorthand for a PIN proof). PIN is scrypt-hashed; PIN and TOTP share one counter, 5 wrong attempts lock both for 15 minutes.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin:
+                  type: string
+                  pattern: '^[0-9]{6,12}$'
+                currentPin:
+                  type: string
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Enrolled
+        '400':
+          description: Invalid or too-easy PIN
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED or STEP_UP_CHALLENGE_EXPIRED when changing an existing setup; FRESH_SESSION_REQUIRED when enrolling the first factor with a session token older than 5 minutes
+    delete:
+      summary: Remove the step-up PIN
+      description: Needs `proof` from an existing factor (a PIN proof may be the PIN being removed). Removing the last factor restarts the enrollment cooldown for the next enrollment. Writes an audit row and a user-visible notification.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED or STEP_UP_CHALLENGE_EXPIRED
+        '404':
+          description: No PIN is set
+
+  /api/auth/step-up/totp:
+    delete:
+      summary: Remove the authenticator app
+      description: Same rules as removing the PIN.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED or STEP_UP_CHALLENGE_EXPIRED
+        '404':
+          description: No authenticator app is set
+
+  /api/auth/step-up/totp/enroll:
+    post:
+      summary: Start authenticator-app (TOTP) enrollment
+      description: Returns the shared secret and otpauth URI exactly once (Cache-Control no-store). The secret is stored AES-256-GCM sealed in a pending slot and only becomes active after /totp/confirm, so an abandoned enrollment never disturbs a working authenticator. Authorised like the PIN endpoint.
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPin:
+                  type: string
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Secret for the QR code (shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: string
+                    description: Base32 secret
+                  otpauthUri:
+                    type: string
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED
+
+  /api/auth/step-up/totp/confirm:
+    post:
+      summary: Confirm authenticator-app enrollment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+      responses:
+        '200':
+          description: Authenticator activated
+        '400':
+          description: Enrollment not started or malformed code
+        '403':
+          description: STEP_UP_FAILED or STEP_UP_LOCKED
+
+  /api/auth/passkeys:
+    get:
+      summary: List registered passkeys
+      description: Metadata only (label, device type, timestamps). Public keys and credential ids are never returned.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Passkeys
+
+  /api/auth/passkeys/{id}:
+    delete:
+      summary: Remove one of your passkeys
+      description: Needs `proof` from an existing factor. Only the caller's own passkeys can be removed. Removing the last factor restarts the enrollment cooldown for the next enrollment.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Removed
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED or STEP_UP_CHALLENGE_EXPIRED
+        '404':
+          description: Passkey not found
+
+  /api/auth/security-notifications:
+    get:
+      summary: Notifications about changes to your verification methods
+      description: Newest first, at most 20. One entry whenever a PIN, authenticator app or passkey is enrolled, replaced or removed. Never contains secrets, PINs or codes.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notifications (`kind` is factor_enrolled, factor_replaced or factor_removed; `factor` is pin, totp or passkey)
+
+  /api/auth/passkeys/register/options:
+    post:
+      summary: Begin passkey registration (WebAuthn creation options)
+      description: Authorised like the PIN endpoint. Stores a single-use 5-minute registration challenge. User verification is required and attestation is not requested.
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPin:
+                  type: string
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: PublicKeyCredentialCreationOptionsJSON under `options`
+        '403':
+          description: STEP_UP_REQUIRED, STEP_UP_FAILED, STEP_UP_LOCKED, STEP_UP_CHALLENGE_EXPIRED
+        '409':
+          description: Passkey limit reached
+
+  /api/auth/passkeys/register/verify:
+    post:
+      summary: Finish passkey registration
+      description: Verifies the attestation against the stored challenge, the configured RP ID and allowed origins, with user verification required. Stores the public key, counter and transports.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attestation]
+              properties:
+                attestation:
+                  type: object
+                  description: RegistrationResponseJSON from navigator.credentials.create()
+                label:
+                  type: string
+                  maxLength: 64
+      responses:
+        '200':
+          description: Registered
+        '400':
+          description: Challenge missing/expired or attestation invalid
+        '409':
+          description: Credential already registered
+
+  /api/approvals/{id}:
+    get:
+      summary: Get Approval By ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Approval record returned
+
+  /api/approvals/{id}/challenge:
+    post:
+      summary: Request a single-use step-up challenge for this approval
+      description: |
+        Returns a single-use 5-minute nonce. The server stores, with the nonce, a fingerprint
+        sha256(approvalId | userId | action_type | amount_minor | money_out_minor | canonical(payload) | expires_at).
+        A passkey signs a challenge derived from nonce + fingerprint, so a signature made for one approval is worthless for
+        any other. `passkeyOptions` (WebAuthn request options) is present when the user has a passkey. Nothing returned
+        here lets a client derive a proof without a real factor.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepUpChallenge'
+        '403':
+          description: STEP_UP_NOT_ENROLLED - set up a passkey, authenticator app, or PIN first
+
+  /api/approvals/{id}/decide:
+    post:
+      summary: Execute or Deny Approval via Guardian State Machine
+      security:
+        - BearerAuth: []
+        - IdempotencyKey: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, deny]
+                challengeNonce:
+                  type: string
+                  description: Single-use nonce from POST /api/approvals/{id}/challenge. Required to approve.
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Decision executed atomically via CAS transition
+        '403':
+          description: Step-up failed (STEP_UP_NOT_ENROLLED, STEP_UP_COOLDOWN with `error.details.remainingSeconds`, STEP_UP_REQUIRED, STEP_UP_CHALLENGE_*, STEP_UP_FAILED, STEP_UP_LOCKED) or blocked at execution time by current caps
+        '409':
+          description: Concurrent action in progress or already decided
+        '422':
+          description: Blocked by Guardian policy or invalid challenge
+
+  /api/approvals/{id}/retry:
+    post:
+      summary: Retry Failed Approval Execution
+      description: Requires a fresh step-up (proof + challengeNonce), re-checks current caps atomically, max 3 retries, within 24h of the decision, and is refused if the action already performed its side effect.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                challengeNonce:
+                  type: string
+                proof:
+                  $ref: '#/components/schemas/StepUpProof'
+      responses:
+        '200':
+          description: Approval execution re-attempted
+        '403':
+          description: Step-up failed or blocked by current caps
+        '409':
+          description: Already executed, retry limit reached, or concurrent
+        '404':
+          description: Approval not found
+
+  /api/plans:
+    post:
+      summary: Generate Closed-World Weekend Plan
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mood:
+                  type: string
+                  enum: [drained, okay, great]
+                groupSize:
+                  type: integer
+                radiusKm:
+                  type: number
+      responses:
+        '200':
+          description: 3-slot plan (comfort, stretch, new) generated
+
+  /api/plans/latest:
+    get:
+      summary: Get Latest Generated Plan
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Latest open plan returned
+
+  /api/plans/{id}/select:
+    post:
+      summary: Select Suggested Activity Ticket
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                suggestionId:
+                  type: string
+      responses:
+        '200':
+          description: Ticket selected and learning event recorded
+
+  /api/plans/{id}/reject:
+    post:
+      summary: Reject Activity Ticket with Reason
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [too_far, too_pricey, not_my_vibe, did_recently]
+                suggestionId:
+                  type: string
+      responses:
+        '200':
+          description: Reasoned rejection recorded and bandit updated
+
+  /api/suggestions/{id}/feedback:
+    post:
+      summary: Provide Ticket Feedback
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [accept, reject]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Feedback applied
+
+  /api/comfort-space:
+    get:
+      summary: 2D Comfort Zone Visual Model
+      security:
+        - BearerAuth: []
+      description: Returns distance and category radii representing current exploration comfort boundaries.
+      responses:
+        '200':
+          description: Comfort model dimensions returned
+    post:
+      summary: Nearest calm spots around the user's home
+      description: Closed-world lookup over stored venues (quiet venues, cafes, outdoors) sorted by road distance from the profile's home location. Needs home_lat/home_lng or a geocodable home_label; otherwise 400 VALIDATION_FAILED.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Up to three calm venues
+        '400':
+          description: Home location not configured
+
+  /api/groups/preview:
+    post:
+      summary: Exact equal-split amounts for a bill
+      description: |
+        Returns the per-friend and organizer amounts that POST /api/groups will stage in `equal` mode for the same
+        organizer, total and friend count. Both use one function, so a preview always equals the staged shares. Remainder
+        minor units are rotated by a deterministic offset seeded from (organizer, total, friend count); friends keep their
+        submitted order and the organizer is the last participant.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [totalMinor, friendCount]
+              properties:
+                totalMinor:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000000000
+                friendCount:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+      responses:
+        '200':
+          description: Shares in minor units. `friendShares[i]` is for the i-th friend; sum(friendShares) + organizerShareMinor = totalMinor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalMinor:
+                    type: integer
+                  currency:
+                    type: string
+                  friendShares:
+                    type: array
+                    items:
+                      type: integer
+                  organizerShareMinor:
+                    type: integer
+        '400':
+          description: VALIDATION_FAILED
+
+  /api/groups:
+    get:
+      summary: List the organizer's group outings
+      description: Each outing with its friend payments (including the public checkout token) and a paid count. Only groups organized by the caller are returned.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Groups
+    post:
+      summary: Stage Group Split Outing
+      security:
+        - BearerAuth: []
+      description: Splits cost equally (remainder minor units rotated deterministically; see POST /api/groups/preview) or by custom shares. Stages pending approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venueName, totalMinor, friends]
+              properties:
+                venueName:
+                  type: string
+                totalMinor:
+                  type: integer
+                currency:
+                  type: string
+                friends:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, contact, shareMinor]
+                    properties:
+                      name:
+                        type: string
+                      contact:
+                        type: string
+                      shareMinor:
+                        type: integer
+      responses:
+        '200':
+          description: Group staged with pending approval
+
+  /api/groups/{id}/settlement:
+    get:
+      summary: Money ledger for one outing
+      description: |
+        Every PayPal capture and refund recorded for the outing (append-only), plus what is currently held.
+        Friends' payments are collected into Pocketful's own PayPal merchant account (`heldBy: platform`). There is no
+        payout to the organizer or the venue; this is a record of money moved, not a transfer. Only the organizer can read it.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ledger entries and totals in minor units
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groupId:
+                    type: string
+                  currency:
+                    type: string
+                  collectedMinor:
+                    type: integer
+                  refundedMinor:
+                    type: integer
+                  heldMinor:
+                    type: integer
+                    description: collectedMinor - refundedMinor
+                  captures:
+                    type: integer
+                  refunds:
+                    type: integer
+                  heldBy:
+                    type: string
+                    enum: [platform]
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        paymentId:
+                          type: string
+                        kind:
+                          type: string
+                          enum: [capture, refund]
+                        amountMinor:
+                          type: integer
+                        currency:
+                          type: string
+                        actor:
+                          type: string
+                          enum: [friend_capture, webhook, organizer, system]
+                        createdAt:
+                          type: string
+                          format: date-time
+        '404':
+          description: Group not found or not yours
+
+  /api/groups/{id}:
+    get:
+      summary: Get Group Outing Status
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Group status, friend payment tokens, and total collected returned
+
+  /api/groups/{id}/cancel:
+    post:
+      summary: Cancel Group Outing
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Outing cancelled or refund approval staged if friends already paid
+
+  /api/tracker/timeline:
+    get:
+      summary: Leisure Spending Timeline
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Chronological list of leisure and organic transactions
+
+  /api/tracker/sync:
+    post:
+      summary: Automated Leisure Matching Sync
+      security:
+        - BearerAuth: []
+      description: Matches transactions within 48h to user accepted suggestions within 25% tolerance.
+      responses:
+        '200':
+          description: Sync completed and matches recorded
+
+  /api/tracker/{id}/rating:
+    post:
+      summary: Rate Leisure Experience
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating:
+                  type: string
+                  enum: [worth_it, okay, too_much]
+      responses:
+        '200':
+          description: Rating recorded and previous rating reverted if modified
+
+  /api/tracker/manual:
+    post:
+      summary: Record Manual Leisure Visit
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchantName, amountMinor]
+              properties:
+                merchantName:
+                  type: string
+                amountMinor:
+                  type: integer
+                category:
+                  type: string
+      responses:
+        '200':
+          description: Manual visit added to timeline
+
+  /api/learning/lines:
+    get:
+      summary: Human-Readable Learned Preference Explanations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Explanatory lines derived from bandit state
+
+  /api/learning/forget:
+    post:
+      summary: Forget Specific Learned Preference Feature
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feature]
+              properties:
+                feature:
+                  type: string
+      responses:
+        '200':
+          description: Feature reset to neutral prior
+
+  /api/learning/reset:
+    post:
+      summary: Reset Entire Bandit State
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All alpha and beta values reset to 1
+
+  /api/learning/profile:
+    get:
+      summary: Get Learned Preference Model Profile
+      security:
+        - BearerAuth: []
+      description: Returns bandit state distributions and top categories for user.
+      responses:
+        '200':
+          description: Learned profile returned
+
+  /api/occasions:
+    get:
+      summary: Upcoming Occasions & Calendar Rhythm
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Occasions, holidays, and long weekends returned. `region` is null and `regionRequired` is true (with `regionMessage`) when the region cannot be derived from the user's timezone, currency or home location; no holidays are listed in that case.
+
+  /api/getaways/plan:
+    post:
+      summary: Plan Long Weekend Getaway
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nights:
+                  type: integer
+                  default: 3
+      responses:
+        '200':
+          description: Getaway destination candidate proposed
+        '422':
+          description: REGION_REQUIRED - the user's region cannot be derived, so no region-based plan is made
+
+  /api/vault:
+    get:
+      summary: Sunday Vault Balance & Status
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sunday Vault status returned
+
+  /api/vault/decide:
+    post:
+      summary: Sunday Evening Vault Decision
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [lock_in, roll_over]
+                amountMinor:
+                  type: integer
+      responses:
+        '200':
+          description: Decision applied or approval staged if exceeding cap
+
+  /api/vault/mood:
+    post:
+      summary: Sunday Mood Check-In
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level]
+              properties:
+                level:
+                  type: string
+                  enum: [drained, okay, great]
+      responses:
+        '200':
+          description: Mood recorded
+
+  /api/mood:
+    post:
+      summary: Direct Mood Check-In (Alias)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [level]
+              properties:
+                level:
+                  type: string
+                  enum: [drained, okay, great]
+      responses:
+        '200':
+          description: Mood recorded
+
+  /api/receipt/current:
+    get:
+      summary: Current Week Till Receipt
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current week till receipt returned
+
+  /api/receipt/{week}:
+    get:
+      summary: Itemized Historical Till Receipt
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: week
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Filtered 7-day ISO window receipt returned
+
+  /api/chat:
+    get:
+      summary: Get Pip Chat History
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Message history returned
+
+    post:
+      summary: Send Message to Pip AI Orchestrator
+      security:
+        - BearerAuth: []
+      description: Conversational interface with max 6 tool steps and strict Guardian boundaries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Pip reply with interactive cards and pending approvals
+
+  /api/chat/proactive:
+    post:
+      summary: Request Proactive Notification from Pip
+      security:
+        - BearerAuth: []
+      description: Generates context-aware proactive alerts (e.g. ghost subscription alerts or Friday fun money briefing).
+      responses:
+        '200':
+          description: Proactive notification returned
+
+  /api/audit:
+    get:
+      summary: Immutable Append-Only Audit Trail
+      security:
+        - BearerAuth: []
+      description: Complete historical ledger of every executed agent money action.
+      responses:
+        '200':
+          description: List of audit log entries

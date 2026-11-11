@@ -1,0 +1,98 @@
+services:
+  # Pocketful Express API & Autonomous Agent Service
+  - type: web
+    name: pocketful-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build --workspace=apps/api
+    startCommand: node apps/api/dist/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: PORT
+        value: 3001
+      - key: DEMO_MODE
+        value: "false"
+      - key: APP_BASE_URL
+        value: https://pocketful-web.onrender.com
+      - key: CORS_ORIGIN
+        value: https://pocketful-web.onrender.com
+      # Number of reverse proxies in front of the API (Render = 1). Rate limiting keys on the client IP Express derives
+      # from X-Forwarded-For; do not raise it unless you add another proxy/CDN in front. Integer 0-10, never "true".
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      # Hours a newly enrolled/replaced/reset step-up factor cannot approve money actions. Production requires >= 1.
+      - key: STEPUP_ENROLL_COOLDOWN_HOURS
+        value: "24"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Required in production: the server refuses to boot without it. Supabase dashboard -> Settings -> API -> JWT Secret.
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      # Required in production: the server refuses to boot without it. 64 hex chars (32 bytes) that seal TOTP secrets
+      # at rest. Generate with: openssl rand -hex 32. Rotating it invalidates enrolled authenticator apps.
+      - key: STEP_UP_ENC_KEY
+        sync: false
+      # Optional: WEBAUTHN_RP_ID / WEBAUTHN_ORIGINS default to the host/origin of APP_BASE_URL. Only override to a parent
+      # domain deliberately. STEP_UP_TEST_MODE must NEVER be set in production (the server refuses to boot if it is).
+      # The PayPal account that RECEIVES friends' payments (Pocketful's own merchant account; no organizer payout).
+      # 13-character merchant id from PayPal (Account settings). Required in production. PAYPAL_PAYEE_EMAIL may be used instead.
+      - key: PAYPAL_PAYEE_MERCHANT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      # Create the PayPal webhook for https://<api>/webhooks/paypal and subscribe it to BOTH events the API settles:
+      # PAYMENT.CAPTURE.COMPLETED and CHECKOUT.ORDER.COMPLETED. Paste the webhook's id here.
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+
+  # Pocketful React 18 + Vite Static Web Application
+  - type: static_site
+    name: pocketful-web
+    buildCommand: npm ci && npm run build --workspace=apps/web
+    publishPath: apps/web/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_API_URL
+        value: https://pocketful-api.onrender.com
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://pocketful-api.onrender.com https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=63072000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(), microphone=(), geolocation=(), payment=(), publickey-credentials-get=(self), publickey-credentials-create=(self)"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
