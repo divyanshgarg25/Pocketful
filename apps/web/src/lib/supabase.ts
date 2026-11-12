@@ -6,7 +6,8 @@ import { sessionStore, isTokenExpired, type SessionUser } from './sessionStore';
 export type { SessionUser };
 export { isTokenExpired };
 
-const SUPABASE_URL = (import.meta.env['VITE_SUPABASE_URL'] as string) || '';
+const rawSupabaseUrl = (import.meta.env['VITE_SUPABASE_URL'] as string) || '';
+const SUPABASE_URL = rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const SUPABASE_ANON_KEY = (import.meta.env['VITE_SUPABASE_ANON_KEY'] as string) || '';
 
 const rawApiUrl = (import.meta.env['VITE_API_URL'] as string) || 'http://localhost:3001';
