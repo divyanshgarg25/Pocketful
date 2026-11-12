@@ -59,7 +59,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
     try {
       const res = await signIn(email, password);
       setStoredSession(res.token, res.user);
-      setStep(2);
+      onComplete();
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {
@@ -367,7 +367,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
               {currentUser && (
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={onComplete}
                   className="text-xs text-burgundy underline hover:text-claret font-ui font-medium"
                 >
                   Continue as {currentUser.name} →
