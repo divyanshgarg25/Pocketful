@@ -63,10 +63,11 @@ services:
         value: gemini-2.5-flash
 
   # Pocketful React 18 + Vite Static Web Application
-  - type: static_site
+  - type: web
     name: pocketful-web
+    runtime: static
     buildCommand: npm ci && npm run build --workspace=apps/web
-    publishPath: apps/web/dist
+    staticPublishPath: apps/web/dist
     envVars:
       - key: NODE_VERSION
         value: "22"
