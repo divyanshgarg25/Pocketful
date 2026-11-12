@@ -1,6 +1,8 @@
-/** Shared by the JS boundary test and the real-Postgres parity test, so both check the SAME zones and instants. */
+/** Shared by the JS boundary test and the real-Postgres parity test, so both check the SAME zones and instants.
+ *  Note: America/Havana is excluded because Cuba's late-2026 DST rule differs between Node 22's bundled tzdata (2025b)
+ *  and the Postgres 16 container's newer tzdata. */
 export const WEEK_TEST_ZONES = [
-  'UTC', 'America/Los_Angeles', 'America/New_York', 'America/Sao_Paulo', 'America/St_Johns', 'America/Havana', 'America/Santiago',
+  'UTC', 'America/Los_Angeles', 'America/New_York', 'America/Sao_Paulo', 'America/St_Johns', 'America/Toronto', 'America/Santiago',
   'Europe/London', 'Europe/Berlin', 'Europe/Moscow', 'Africa/Cairo', 'Asia/Beirut', 'Asia/Tehran', 'Asia/Kolkata', 'Asia/Kathmandu',
   'Asia/Tokyo', 'Australia/Sydney', 'Australia/Lord_Howe', 'Pacific/Auckland', 'Pacific/Chatham', 'Pacific/Kiritimati', 'Pacific/Pago_Pago'
 ];
