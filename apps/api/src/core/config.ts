@@ -70,7 +70,7 @@ const envSchema = z.object({
     .optional(),
 
   // Supabase Configuration
-  SUPABASE_URL: z.string().optional().default('https://demo.supabase.co'),
+  SUPABASE_URL: z.string().optional().default('https://demo.supabase.co').transform((s) => s.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '')),
   SUPABASE_ANON_KEY: z.string().optional().default('demo-anon-key'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default('demo-service-role-key'),
   SUPABASE_JWT_SECRET: z.string().optional(),
